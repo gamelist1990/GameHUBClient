@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from "vue";
+import ErrorPage from "./ErrorPage.vue";
 
 const REMOTE_URL = "https://pexserver.github.io/HUB/gui.html";
 
 type Status = "checking" | "offline" | "ok" | "error";
 const status = ref<Status>("checking");
 const checkMessage = ref<string>("接続を確認しています...");
-
 function fetchWithTimeout(url: string, timeout = 7000) {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
@@ -27,14 +27,17 @@ async function checkRemote() {
     const res = await fetchWithTimeout(REMOTE_URL, 8000);
     if (res && res.ok) {
       status.value = "ok";
-      // オンラインかつ取得可能ならリダイレクト（iframe は使用しない）
-      // replace を使って履歴を残さず遷移
+      // オンラインかつ取得可能ならリモートを別タブで開いて
+      // 現在のページ（このランチャー）を残すことでオンライン/オフライン検知を継続する
       try {
-        window.location.replace(REMOTE_URL);
+        const newWin = window.open(REMOTE_URL, '_blank');
+        // ポップアップブロックなどで開けなかった場合は従来どおり遷移
+        if (!newWin) {
+          window.location.replace(REMOTE_URL);
+        }
       } catch (e) {
-        // ブラウザ環境やセキュリティ制約でリダイレクトできない場合はそのまま状態を ok にして
-        // ユーザーに手動で開いてもらうリンクを表示する
-        console.warn("自動リダイレクトに失敗しました:", e);
+        console.warn("リモートページを新しいタブで開けませんでした、フォールバックで遷移します:", e);
+        try { window.location.replace(REMOTE_URL); } catch (_) { /* ignore */ }
       }
     } else {
       status.value = "error";
@@ -56,9 +59,12 @@ function onlineHandler() {
 }
 
 function offlineHandler() {
+  // オフライン検知: ステータスを更新して ErrorPage を表示する
   status.value = "offline";
   checkMessage.value = "オフラインになりました。";
 }
+// Note: offline window logic removed. ErrorPage component in the template
+// will show the offline UI when `status` is set to 'offline'.
 
 onMounted(() => {
   window.addEventListener("online", onlineHandler);
@@ -74,27 +80,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div id="app-root" class="app-root">
-    <div v-if="status === 'checking'" class="center">
-      <p>{{ checkMessage }}</p>
-      <div class="spinner" aria-hidden></div>
-    </div>
-
-    <div v-else-if="status === 'offline'" class="offline center">
-      <h1>オフライン</h1>
-      <p>インターネット接続が見つかりません。ネットワークに接続してから再起動してください。</p>
-    </div>
-
-    <div v-else-if="status === 'error'" class="error center">
-      <h1>通信エラー</h1>
-      <p>{{ checkMessage }}</p>
-      <button @click="retry">再試行</button>
-    </div>
-
-    <div v-else-if="status === 'ok'" class="ok center">
-      <h1>リモートページへ移動中…</h1>
-      <p>自動的に外部ページへ移動します。移動しない場合は以下のリンクを開いてください。</p>
-      <p><a :href="REMOTE_URL" target="_blank" rel="noreferrer">リモートページを開く</a></p>
-    </div>
+    <ErrorPage :status="status" :message="checkMessage" :remoteUrl="REMOTE_URL" @retry="retry" />
   </div>
 </template>
 
