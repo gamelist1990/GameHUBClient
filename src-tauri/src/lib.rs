@@ -7,24 +7,11 @@ fn greet(name: &str) -> String {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // CLI 引数に --dev があるか確認
-    let args: Vec<String> = std::env::args().collect();
-    let open_devtools = args.iter().any(|a| a == "--dev");
-
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![greet])
-        .setup(move |app| {
-            // 最初のウィンドウを取得して devtools を開く
-            if open_devtools {
-                #[allow(unused_must_use)]
-                {
-                    let handle = app.handle();
-                    if let Some(window) = handle.get_webview_window("main") {
-                        let _ = window.open_devtools();
-                    }
-                }
-            }
+        .setup(move |_app| {
+            // --dev 機能は廃止。起動時に自動的に devtools を開く処理は行わない。
             Ok(())
         })
         .run(tauri::generate_context!())
