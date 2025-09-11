@@ -4,7 +4,7 @@ import ErrorPage from "./ErrorPage.vue";
 import Notification from './components/Notification.vue'
 import { useNetwork, fetchNoCache } from './utils/network'
 
-const REMOTE_URL = "shttps://pexserver.github.io/HUB/gui.html";
+const REMOTE_URL = "https://pexserver.github.io/HUB/gui.html";
 
 type Status = "checking" | "offline" | "ok" | "error";
 const status = ref<Status>("checking");
