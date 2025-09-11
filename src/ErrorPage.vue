@@ -1,17 +1,38 @@
 <script setup lang="ts">
-import { defineProps, defineEmits } from 'vue'
+import { defineProps, defineEmits, computed } from 'vue'
 
 type Status = 'checking' | 'offline' | 'ok' | 'error'
 
-const { status, message, remoteUrl } = defineProps<{
+const props = defineProps<{
   status: Status
   message?: string
-  remoteUrl?: string
 }>()
 
-const emits = defineEmits<{
-  (e: 'retry'): void
-}>()
+const emits = defineEmits<{ (e: 'retry'): void }>()
+
+const title = computed(() => {
+  switch (props.status) {
+    case 'offline': return 'オフライン'
+    case 'error': return '通信エラー'
+    case 'checking': return '接続を確認中…'
+    default: return '準備中…'
+  }
+})
+
+const emoji = computed(() => {
+  switch (props.status) {
+    case 'offline': return '📴'
+    case 'error': return '⚠️'
+    case 'checking': return '⏳'
+    default: return '✅'
+  }
+})
+
+const defaultMessage = computed(() => {
+  return props.status === 'offline'
+    ? 'ネットワークに接続されていません。ネットワーク接続を確認してください。'
+    : 'リモートサービスに接続できません。'
+})
 
 function onRetry() {
   emits('retry')
@@ -19,78 +40,180 @@ function onRetry() {
 </script>
 
 <template>
-  <div class="error-root">
-    <div class="card">
-      <div class="top">
-        <div class="icon-wrap">
-          <svg v-if="status === 'offline'" class="icon wifi" viewBox="0 0 24 24" aria-hidden>
-            <path fill="currentColor" d="M12 18.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm4.7-2.3a6.5 6.5 0 0 0-9.4 0 .75.75 0 0 0 1.06 1.06 5 5 0 0 1 7.28 0 .75.75 0 0 0 1.06-1.06zM18.36 12.64a10.01 10.01 0 0 0-12.72 0 .75.75 0 0 0 1.06 1.06 8.5 8.5 0 0 1 10.6 0 .75.75 0 1 0 1.06-1.06z" />
-          </svg>
+  <div class="error-root" role="alertdialog" aria-labelledby="err-title" aria-describedby="err-desc">
+    <div class="mac-card">
+      
 
-          <svg v-else-if="status === 'error'" class="icon error-icon" viewBox="0 0 24 24" aria-hidden>
-            <path fill="currentColor" d="M11 15h2v2h-2v-2zm0-8h2v6h-2V7zm1-5C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/>
-          </svg>
-
-          <svg v-else-if="status === 'checking'" class="icon checking" viewBox="0 0 24 24" aria-hidden>
-            <path fill="currentColor" d="M12 4a8 8 0 1 0 8 8h-2a6 6 0 1 1-6-6V4z" />
-          </svg>
-
-          <svg v-else class="icon ok" viewBox="0 0 24 24" aria-hidden>
-            <path fill="currentColor" d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z" />
-          </svg>
+      <div class="content">
+        <div class="icon-wrap" :class="props.status" aria-hidden>
+          <span class="emoji">{{ emoji }}</span>
         </div>
+
         <div class="text">
-          <h1 class="title">
-            <span v-if="status === 'offline'">オフラインです</span>
-            <span v-else-if="status === 'error'">通信エラー</span>
-            <span v-else-if="status === 'checking'">接続を確認中</span>
-            <span v-else>移動中…</span>
-          </h1>
-          <p class="subtitle">{{ message ?? (status === 'offline' ? 'ネットワークに接続されていません。Wi‑Fiや有線接続を確認してください。' : 'リモートサービスへ接続できません。') }}</p>
+          <h1 id="err-title">{{ title }}</h1>
+          <p id="err-desc" class="desc">{{ props.message ?? defaultMessage }}</p>
         </div>
-      </div>
 
-      <div class="actions">
-        <button class="btn-primary" @click="onRetry">
-          <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden>
-            <path fill="currentColor" d="M12 6V3L8 7l4 4V8c2.76 0 5 2.24 5 5 0 .39-.04.77-.12 1.13l1.46.43A7 7 0 0 0 19 13c0-3.87-3.13-7-7-7z"/>
-          </svg>
-          再接続
-        </button>
-
-        <a v-if="remoteUrl" :href="remoteUrl" target="_blank" rel="noreferrer" class="btn-ghost">リモートを開く</a>
+        <div class="actions">
+          <button class="btn-secondary" @click="onRetry">再接続</button>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-/* Layout */
-.error-root { height: 100vh; display:flex; align-items:center; justify-content:center; background: #f1f3f4; }
-.card { width: min(720px, 92%); background: #fff; border-radius: 8px; padding: 28px; box-shadow: 0 2px 6px rgba(60,64,67,0.12); display:flex; flex-direction:column; gap:18px; }
-.top { display:flex; gap:18px; align-items:center; }
-.icon-wrap { width:72px; height:72px; display:flex; align-items:center; justify-content:center; border-radius:50%; background:rgba(26,115,232,0.08); }
-.icon { width:40px; height:40px; color:#1a73e8; }
-.error-icon { color:#d93025; background: rgba(217,48,37,0.06); }
-.checking { color:#f6bf00; }
-.ok { color:#188038; }
+/* Hide native scrollbars globally for the app container; still allow scroll via wheel/trackpad. */
+/* WebKit browsers. */
+::-webkit-scrollbar {
+  width: 0px;
+  height: 0px;
+}
 
-.text { flex:1; }
-.title { margin:0; font-size:20px; font-weight:500; color:#202124; }
-.subtitle { margin:6px 0 0 0; color:#5f6368; }
+/* Firefox. */
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
 
-/* Actions */
-.actions { display:flex; gap:12px; align-items:center; }
-.btn-primary { display:inline-flex; align-items:center; gap:8px; background:#1a73e8; color:white; border:none; padding:10px 16px; border-radius:4px; font-weight:500; cursor:pointer; box-shadow: 0 1px 2px rgba(26,115,232,0.2); }
-.btn-primary:active { transform: translateY(1px); }
-.btn-icon { width:18px; height:18px; color: rgba(255,255,255,0.95); }
-.btn-ghost { color:#1a73e8; text-decoration: none; padding:8px 12px; border-radius:4px; border:1px solid rgba(26,115,232,0.12); }
+.error-root {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, #f3f4f6, #e6edf3);
+  padding: 28px;
+  box-sizing: border-box;
+}
 
-/* Responsive */
-@media (max-width:480px) {
-  .top { gap:12px; }
-  .icon-wrap { width:56px; height:56px; }
-  .icon { width:32px; height:32px; }
-  .title { font-size:18px; }
+.mac-card {
+  width: min(720px, 94%);
+  background: linear-gradient(180deg, #ffffff, #f8fafc);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(16, 24, 40, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(16, 24, 40, 0.06);
+  overflow: hidden;
+}
+
+
+
+.content {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  padding: 20px 28px 28px;
+}
+
+.icon-wrap {
+  width: 88px;
+  height: 88px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #fafafa, #e9eef6);
+  box-shadow: 0 6px 18px rgba(16, 24, 40, 0.06);
+}
+
+.icon-wrap .emoji {
+  font-size: 44px;
+  line-height: 1;
+  display: inline-block;
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+}
+
+.text h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.desc {
+  margin: 8px 0 0 0;
+  color: #475569;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.btn-secondary {
+  background: #007aff;
+  color: white;
+  border: none;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-weight: 600;
+  box-shadow: 0 6px 12px rgba(0, 122, 255, 0.15);
+  cursor: pointer;
+}
+
+.btn-secondary:active {
+  transform: translateY(1px);
+}
+
+.btn-ghost {
+  background: transparent;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  padding: 9px 12px;
+  border-radius: 8px;
+  color: #0f172a;
+  cursor: pointer;
+}
+
+/* Status color cues. */
+.icon-wrap.offline {
+  background: linear-gradient(180deg, #fff1f0, #fee2e2);
+}
+
+.icon-wrap.error {
+  background: linear-gradient(180deg, #fff1f0, #fee2e2);
+}
+
+.icon-wrap.checking {
+  background: linear-gradient(180deg, #fffaf0, #fffbeb);
+}
+
+.icon-wrap.ok {
+  background: linear-gradient(180deg, #f0fdf4, #ecfdf5);
+}
+
+@media (max-width: 600px) {
+  .content {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .actions {
+    justify-content: flex-end;
+  }
+
+  .icon-wrap {
+    margin: 0 auto 8px;
+  }
+}
+</style>
+
+<style>
+/* Ensure the app root and document fill the viewport so the background covers the whole page. */
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+/* Apply the same background gradient to the document so it covers the full viewport. */
+body {
+  background: linear-gradient(180deg, #f3f4f6, #e6edf3);
 }
 </style>

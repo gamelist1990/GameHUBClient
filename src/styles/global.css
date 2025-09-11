@@ -1,0 +1,11 @@
+/* Global styles for app-wide tweaks (non-scoped) */
+/* Hide scrollbars but keep scrolling functional */
+/* WebKit */
+html, body, #app {
+  -webkit-overflow-scrolling: touch;
+}
+::-webkit-scrollbar { width: 0 !important; height: 0 !important; }
+/* Firefox */
+* { scrollbar-width: none !important; }
+/* IE/Edge legacy */
+body { -ms-overflow-style: none !important; }

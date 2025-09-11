@@ -1,57 +1,73 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from "vue";
+import { ref, onMounted, watch } from "vue";
 import ErrorPage from "./ErrorPage.vue";
+import Notification from './components/Notification.vue'
+import { useNetwork, fetchNoCache } from './utils/network'
 
-const REMOTE_URL = "https://pexserver.github.io/HUB/gui.html";
+const REMOTE_URL = "shttps://pexserver.github.io/HUB/gui.html";
 
 type Status = "checking" | "offline" | "ok" | "error";
 const status = ref<Status>("checking");
 const checkMessage = ref<string>("接続を確認しています...");
+
+
+// App側の簡易ラッパーは内部で `fetchNoCache` を使う
 function fetchWithTimeout(url: string, timeout = 7000) {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeout);
-  return fetch(url, { method: "GET", signal: controller.signal }).finally(() => clearTimeout(id));
+  return fetchNoCache(url, { method: 'GET', timeout, cacheBusting: true })
 }
 
-async function checkRemote() {
+async function checkRemote(): Promise<boolean> {
   status.value = "checking";
   checkMessage.value = "接続を確認しています...";
 
   if (!navigator.onLine) {
     status.value = "offline";
     checkMessage.value = "オフラインです。オフラインページを表示します。";
-    return;
+    return false;
   }
 
   try {
     const res = await fetchWithTimeout(REMOTE_URL, 8000);
     if (res && res.ok) {
       status.value = "ok";
-      // オンラインかつ取得可能ならリモートを別タブで開いて
-      // 現在のページ（このランチャー）を残すことでオンライン/オフライン検知を継続する
-      try {
-        const newWin = window.open(REMOTE_URL, '_blank');
-        // ポップアップブロックなどで開けなかった場合は従来どおり遷移
-        if (!newWin) {
+      // フェッチ完了時点で念のためオンラインかを再確認してから遷移/新タブを開く
+      // (ajax が返ってきた直後にオフラインになるレースを回避)
+      if (!navigator.onLine) {
+        // オフラインになっていたら遷移しない
+        status.value = 'offline';
+        checkMessage.value = '接続が切断されました。再接続をお試しください。';
+        return false;
+      } else {
+        // オンラインなら通常の置き換えで遷移
+        try {
           window.location.replace(REMOTE_URL);
+        } catch (e) {
+          console.warn("自動リダイレクトに失敗しました:", e);
         }
-      } catch (e) {
-        console.warn("リモートページを新しいタブで開けませんでした、フォールバックで遷移します:", e);
-        try { window.location.replace(REMOTE_URL); } catch (_) { /* ignore */ }
+        return true;
       }
     } else {
       status.value = "error";
       checkMessage.value = `リモートページを取得できませんでした (HTTP ${res?.status ?? "?"})`;
+      return false;
     }
   } catch (e) {
     status.value = "error";
     checkMessage.value = "リモートページに接続できませんでした。通信を確認してください。";
+    return false;
   }
 }
 
 
-function retry() {
-  checkRemote();
+const notification = ref({ show: false, message: '', type: 'info' as 'success'|'error'|'info' })
+
+async function retry() {
+  const ok = await checkRemote()
+  if (ok) {
+    notification.value = { show: true, message: '再接続に成功しました。', type: 'success' }
+  } else {
+    notification.value = { show: true, message: '再接続に失敗しました。', type: 'error' }
+  }
 }
 
 function onlineHandler() {
@@ -63,24 +79,25 @@ function offlineHandler() {
   status.value = "offline";
   checkMessage.value = "オフラインになりました。";
 }
-// Note: offline window logic removed. ErrorPage component in the template
-// will show the offline UI when `status` is set to 'offline'.
+
+const { isOnline } = useNetwork()
 
 onMounted(() => {
-  window.addEventListener("online", onlineHandler);
-  window.addEventListener("offline", offlineHandler);
+  // 初回チェック
   checkRemote();
-});
+})
 
-onBeforeUnmount(() => {
-  window.removeEventListener("online", onlineHandler);
-  window.removeEventListener("offline", offlineHandler);
-});
+// ネットワーク状態の変化を監視してハンドラを呼ぶ
+watch(isOnline, (online) => {
+  if (online) onlineHandler()
+  else offlineHandler()
+})
 </script>
 
 <template>
   <div id="app-root" class="app-root">
     <ErrorPage :status="status" :message="checkMessage" :remoteUrl="REMOTE_URL" @retry="retry" />
+    <Notification :show="notification.show" :message="notification.message" :type="notification.type" :duration="3000" @close="notification.show = false" />
   </div>
 </template>
 
@@ -91,7 +108,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f5f7fb;
+  background: transparent;
   color: #202124;
   font-family: Roboto, Arial, Helvetica, sans-serif;
 }
